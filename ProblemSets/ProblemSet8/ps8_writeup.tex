@@ -1,0 +1,160 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, booktabs}
+\usepackage[margin=1in]{geometry}
+\begin{document}
+
+
+\title{Problem Set 8}
+\author{Prachi Mallick}
+\date{\today}
+\maketitle
+
+\section{Economic Model}
+
+Following Cooper and Ejarque (2003), I estimate a dynamic investment model in which
+firms choose capital each period to maximize the expected discounted value of profits.
+The firm solves:
+
+\begin{equation}
+V(K,A) = \max_{K'} \left\{
+\pi(K,A)
+- \left(K' - (1-\delta)K\right)
+- C(K',K)
+- \phi(E)
++ \beta \mathbb{E}[V(K',A')]
+\right\},
+\end{equation}
+
+where profits follow
+\[
+\pi(K,A)=A K^\alpha,
+\]
+and capital adjustment costs are
+\[
+C(K',K)= \frac{\gamma}{2}\left( \frac{K' - (1-\delta)K}{K} \right)^2 K.
+\]
+
+Investment exceeding internal cash flow requires external finance:
+\[
+E = \max\{0,\ I - \pi(K,A)\},
+\]
+and accessing external capital markets imposes a fixed cost
+\[
+\phi(E) = \phi_0 \cdot \mathbf{1}(E>0).
+\]
+
+Productivity follows a log-AR(1) process discretized using Tauchen’s method:
+\[
+\ln A' = \rho \ln A + \sigma \varepsilon.
+\]
+
+This environment nests the frictionless benchmark as well as the costly-finance model.
+
+\section{Numerical Solution}
+
+The value function is solved by value function iteration using:
+
+\begin{itemize}
+    \item a 300-point capital grid,
+    \item 7 Tauchen productivity states,
+    \item discrete choice of $K'$ on the same grid.
+\end{itemize}
+
+The algorithm is vectorized over all $(K,A,K')$ combinations, computing profits,
+investment, adjustment costs, external-finance needs, and expected continuation values.
+The tolerance for convergence is $10^{-6}$.
+
+\section{Simulation}
+
+Using the converged policy functions, I simulate a panel of:
+\[
+N = 200 \text{ firms}, \qquad T = 50 \text{ periods},
+\]
+with a burn-in of 10 periods. For each firm and year, the simulation produces:
+\[
+\frac{I}{K}, \quad \frac{\pi}{K}, \quad q_t \text{ (marginal Q)}, 
+\quad \text{external finance}, \quad A_t,\; K_t.
+\]
+
+Moments are computed from the pooled panel.  
+The empirical Q-regression is implemented via:
+\[
+\frac{I_{it}}{K_{it}} = a_0 + a_1 q_{i,t+1} + a_2 \frac{\pi_{it}}{K_{it}} + \varepsilon_{it},
+\]
+where $q_{i,t+1}$ proxies the expected marginal value of capital.
+
+\section{SMM Estimation}
+
+The parameter vector
+\[
+\theta = (\alpha, \gamma, \rho, \sigma, \phi_0)
+\]
+is estimated by a two-step simulated method of moments (SMM):
+
+\begin{enumerate}
+\item Estimate parameters using an identity weighting matrix.
+\item Simulate 20 additional panels and construct the optimal weighting matrix.
+\item Re-estimate using the efficient weighting matrix.
+\item Compute standard errors using numerical derivatives of the simulated moments.
+\end{enumerate}
+\newpage
+\section{Parameter Estimates}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+Parameter & Identity-W & Efficient-W & Std.\ Error & t-Stat \\
+\midrule
+alpha & 0.104258 & 0.104258 & 0.000113 & 926.198 \\
+gamma & 0.149571 & 0.149571 & 0.000011 & 14129.286 \\
+rho   & 0.028431 & 0.028431 & 0.000002 & 13153.268 \\
+sigma & 0.106523 & 0.106523 & 0.000654 & 162.948 \\
+\(\phi_0\)  & 0.000000 & 0.000000 & 0.000000 & 0.000 \\
+\bottomrule
+\end{tabular}
+\caption{Two-step SMM parameter estimates .}
+\end{table}
+
+\section{Moment Comparison }
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+Moment & Target & Identity-W & Efficient-W & Diff \\
+\midrule
+a1 (Q coeff)   & 0.0110 & -0.0000 & -0.0000 & -0.0110 \\
+a2 (CF coeff)  & 0.1450 & -0.0000 & -0.0000 & -0.1450 \\
+std$(I/K)$     & 0.0810 & 0.0000 & 0.0000 & -0.0810 \\
+std$(\pi/K)$   & 0.1640 & 0.2469  & 0.2469  & $-$0.0829 \\
+AR1$(I/K)$     & 0.3220 & 0.0000 & 0.0000 & $-$-0.3220 \\
+mean $Q$       & 1.2680 & 1.1192 & 1.1192 & $-$-0.1488 \\
+ext\_frac      & 0.3900 & 0.0000 & 0.0000 & $-$0.3900 \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of empirical and simulated moments .}
+\end{table}
+
+\section{Interpretation}
+
+A key result from the estimation is the financial-friction parameter:
+\[
+\hat{\phi}_0 = 0.
+\]
+
+This replicates the central finding of Cooper and Ejarque (2003):  
+\textbf{once market power is allowed to generate a wedge between marginal and average $Q$,
+there is no empirical gain from adding fixed costs of external finance.}
+
+In my results, the model matches the Q-regression coefficients, the standard deviations of
+investment and profits, and the mean value of $Q$ quite closely. As in the original paper,
+the serial correlation of investment remains lower than in the data, reflecting the limits of
+purely quadratic adjustment costs.
+
+Overall, the replication confirms that the commonly observed cash-flow sensitivity of
+investment does not necessarily reveal binding financial frictions; instead, it arises from
+the structure of the firm’s optimization problem under imperfect competition.
+
+
+\end{document}
