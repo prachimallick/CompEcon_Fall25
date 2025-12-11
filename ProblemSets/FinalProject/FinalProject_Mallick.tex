@@ -1,0 +1,502 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{setspace}
+\usepackage{geometry}
+\usepackage{url}
+\geometry{margin=1in}
+
+\title{Depression, Study Effort, and Productivity:\\ 
+An Empirical and Dynamic Programming Analysis}
+\author{Prachi Mallick}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\doublespacing
+
+\section{Introduction}
+
+Depression is known to affect motivation, concentration, and overall academic
+performance. In this project, I study how depression relates to students'
+study behavior and GPA outcomes using a dataset of 27,901 university students.
+I first document basic differences between depressed and non-depressed students
+in study hours, sleep, and financial stress. I then estimate a GPA production
+function that shows depressed students have lower marginal productivity of
+study time.
+
+To better understand how these productivity differences translate into study
+choices, I build a simple dynamic programming model in which students choose
+daily study hours to balance GPA gains against effort costs. Using parameters
+calibrated from the data, the model predicts that depressed students optimally
+choose to study more hours, despite being less productive. This project combines
+empirical analysis with a behavioral model to explain why effort patterns differ
+across depression status.
+
+
+% ============================================================
+\section{Data and Cleaning}
+
+The analysis uses the \textit{Student Depression Dataset} (Zubair Dhuddi, 2023), 
+a publicly available Kaggle dataset containing self-reported information on 
+demographics, study habits, mental health indicators, and academic outcomes for 
+27{,}901 university students across multiple Indian cities. Because the dataset 
+represents only Indian students, external validity should be interpreted within 
+this geographic and institutional context.
+
+\subsection{Key Variables}
+
+The core variables used in estimation are:
+\begin{itemize}
+    \item $CGPA_i$: cumulative grade point average (0--10 scale).
+    \item $Hours_i$: daily study hours (cleaned from the ``Work/Study Hours'' field).
+    \item $Dep_i \in \{0,1\}$: indicator for self-reported depression.
+    \item $Sleep\_clean$: numeric sleep duration (cleaned from text responses).
+    \item Demographic controls: Age, Gender, Degree major.
+\end{itemize}
+
+\subsection{Cleaning Procedures}
+
+The raw dataset contains heterogeneous text formats and several fields requiring 
+normalization. All cleaning procedures are implemented programmatically in Python 
+to ensure full reproducibility. The main steps are:
+
+\begin{enumerate}
+    \item \textbf{Sleep Duration}: Converted to numeric hours using lightweight 
+    text parsing (e.g., midpoints of ranges, \texttt{hh:mm} conversion, numeric 
+    extraction, and recognition of simple spelled-out numbers).
+
+    \item \textbf{Study Hours}: The ``Work/Study Hours'' field is standardized 
+    into a numeric variable. Ranges, \texttt{hh:mm} formats, and standalone 
+    numbers all parse successfully for the full sample.
+
+    \item \textbf{Financial Stress}: Non-numeric tokens (e.g., ``?'', ``NA'') are 
+    mapped to missing values. For the remaining entries, the first numeric value 
+    is extracted to construct a continuous measure.
+
+    \item \textbf{Binary Variables}: Yes/No fields (suicidal thoughts, family 
+    mental illness, depression) are standardized into binary indicators using a 
+    robust parser that handles common spelling variants and punctuation.
+\end{enumerate}
+
+Quality-assurance checks confirm that:
+\begin{itemize}
+    \item Study Hours convert successfully for all 27{,}901 observations,
+    \item 27{,}898 observations contain valid numeric Financial Stress values 
+          (the remainder consist primarily of non-informative entries).
+\end{itemize}
+
+\footnote{Data sourced from Zubair Dhuddi (2023), \textit{Student Mental
+Health \& Depression Indicators Data}, Kaggle. Available at:
+\url{https://www.kaggle.com/datasets/zubairdhuddi/student-dataset}.}
+
+% ============================================================
+\section{Descriptive Results}
+
+Table~\ref{tab:desc} presents summary statistics for the main variables by
+depression status. Of the 27{,}901 students in the sample, 16{,}336 
+(58.5\%) report experiencing depression, while 11{,}565 do not. Mean CGPA is 
+similar across groups (7.62 vs.\ 7.68), with depressed students exhibiting a 
+slightly higher average. More notable differences appear in study behavior and
+financial well-being: depressed students report studying approximately 1.6 more
+hours per day and exhibit substantially higher financial stress. Sleep duration
+is lower among depressed students, consistent with patterns often associated 
+with academic pressure and mental health concerns.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{./analysis_outputs/cgpa_density_by_depression.png}
+\caption{CGPA distribution by depression status (density plot). 
+Depressed and non-depressed students have similar CGPA distributions; the small mean difference is visible but modest relative to within-group spread.}
+\label{fig:cgpa_density}
+\end{figure}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+ & Non-Depressed & Depressed \\
+\midrule
+Number of students & 11{,}565 & 16{,}336 \\
+Mean CGPA & 7.62 & 7.68 \\
+Mean study hours & 6.24 & 7.81 \\
+Mean sleep hours & 6.40 & 6.18 \\
+Mean financial stress & 2.52 & 3.58 \\
+\bottomrule
+\end{tabular}
+\caption{Descriptive statistics by depression status.}
+\label{tab:desc}
+\end{table}
+
+To formally assess these differences, we conduct Welch two-sample $t$-tests for
+CGPA, study hours, and sleep duration. All three variables differ significantly 
+across depression status. Depressed students study, on average, 
+1.57 additional hours per day ($p < 0.001$), sleep 0.22 fewer hours 
+($p < 0.001$), and have a small but statistically significant higher CGPA 
+(difference of 0.066, $p < 0.01$). These differences suggest meaningful 
+behavioral and environmental distinctions between the two groups.
+
+Figure~\ref{fig:hours_box} visualizes the distribution of reported study hours 
+by depression status. Depressed students not only study more on average but 
+also display considerably greater dispersion: the upper tail of the 
+distribution extends beyond 10--12 hours, while non-depressed students have a 
+more compressed range. This pattern aligns with the elevated financial stress 
+reported by depressed students and may reflect compensatory study behavior or 
+greater academic pressure.
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{./analysis_outputs/hours_by_depression_boxplot.png}
+\caption{Distribution of reported study hours by depression status. 
+Depressed students report both higher average study hours and greater 
+dispersion.}
+\label{fig:hours_box}
+\end{figure}
+
+
+% ============================================================
+\section{GPA Production Function}
+
+We model academic performance as the outcome of a simple production function in 
+which study hours contribute to GPA with diminishing returns. Let $H_i$ denote 
+daily study hours for student $i$ and $Dep_i \in \{0,1\}$ indicate depression. 
+The GPA production function is specified as:
+
+\[
+CGPA_i = \beta_0 
+        + \beta_1 H_i 
+        + \beta_2 H_i^2
+        + \gamma_1 Dep_i
+        + \gamma_2 (Dep_i \cdot H_i)
+        + \gamma_3 (Dep_i \cdot H_i^2)
+        + u_i,
+\]
+
+where $\beta_1 > 0$ and $\beta_2 < 0$ capture diminishing marginal returns to 
+study effort. The interaction terms allow both the level and slope of the 
+production function to differ for depressed students.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./analysis_outputs/hours_vs_cgpa_scatter.png}
+\caption{Scatter plot of study hours and CGPA with group-specific fitted lines.
+The fitted line for depressed students is flatter, indicating lower marginal returns to study hours.}
+\label{fig:hours_scatter}
+\end{figure}
+
+
+% ============================================================
+\section{Marginal Productivity of Study Time}
+
+The marginal product of an additional hour of study is:
+
+\[
+MP_i =
+\frac{\partial CGPA_i}{\partial H_i} =
+\begin{cases}
+\beta_1 + 2 \beta_2 H_i, 
+    & \text{if } Dep_i = 0, \\[6pt]
+(\beta_1 + \gamma_2) 
+    + 2(\beta_2 + \gamma_3) H_i, 
+    & \text{if } Dep_i = 1.
+\end{cases}
+\]
+
+Thus, depression changes both the overall GPA level and the effectiveness of additional study hours. These marginal products are used later in the dynamic 
+programming analysis to determine optimal study-hour choices
+
+Using the estimated coefficients from the interaction regression, the marginal 
+products evaluated at the mean study hours of each group are:
+
+\[
+MP_{\text{non-dep}}(H=6.238) = 0.003239,
+\qquad
+MP_{\text{dep}}(H=7.808) = 0.002106.
+\]
+
+
+A convenient measure of the productivity gap is the ratio
+\[
+e \;=\; 
+\frac{MP_{\text{dep}}}{MP_{\text{non-dep}}}
+\;\approx\;
+\frac{0.002106}{0.003239}
+\;\approx\; 0.65.
+\]
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./analysis_outputs/marginal_product_plot.png}
+\caption{Marginal product of study hours for depressed and non-depressed students. 
+The non-depressed marginal product declines with hours, whereas the depressed marginal product starts lower but increases with hours in the estimated quadratic specification.}
+\label{fig:mp_plot}
+\end{figure}
+
+
+Thus, depressed students operate at roughly 65\% of the hourly productivity of
+non-depressed students. This reduction in marginal product plays a central role
+in the dynamic programming analysis, as it shifts the trade-off between effort
+and GPA gains and alters the optimal study-time policy.
+
+% ============================================================
+\section{Economic Interpretation}
+
+The marginal product calculations indicate that an additional hour of study 
+raises GPA only slightly for both groups, but the gain is systematically lower 
+for depressed students. At their respective average study levels, 
+non-depressed students achieve a marginal product of $0.00324$, while depressed 
+students achieve only $0.00211$. In economic terms, depression shifts the 
+productivity schedule downward: each additional hour of effort yields smaller 
+returns. This implies that depressed students face a steeper trade-off between 
+effort and performance, since they must exert more hours to achieve the same 
+increment in GPA. These diminished returns help explain the higher study hours 
+observed among depressed students and motivate the dynamic programming analysis 
+of optimal effort choice under differing productivity profiles
+
+\section{Utility Maximization Framework}
+
+To connect the empirical production estimates to an economic theory of
+student effort, we model each student as choosing daily study hours $H$
+to maximize a per-period payoff that values academic progress but
+penalizes study effort. Let $G$ denote current GPA. Next-period GPA 
+evolves according to
+\[
+G' = G + f(H; d),
+\]
+where $d \in \{0,1\}$ indexes depression status and $f(H;d)$ is the 
+estimated GPA increment from studying $H$ hours. The function $f(H;d)$
+differs across variants of the empirical specification, and the dynamic
+model incorporates each of these forms.
+
+Students obtain utility from higher GPA but incur a disutility from 
+studying. In the implementation, the payoff from GPA is assumed to be 
+\emph{concave}, reflecting diminishing marginal utility of academic 
+achievement. Specifically, letting $u(\cdot)$ denote the GPA utility 
+function, the instantaneous payoff is
+\[
+U(G,H;d) = u(G') \;-\; \chi_d H,
+\]
+where $\chi_d>0$ is the marginal disutility of effort for type $d$.
+Consistent with the code, $u(\cdot)$ follows the CRRA family:
+\[
+u(G) =
+\begin{cases}
+\log(G), & \text{if } \sigma = 1,\\[6pt]
+\dfrac{G^{1-\sigma}-1}{\,1-\sigma\,}, & \text{if } \sigma \neq 1,
+\end{cases}
+\]
+with $\sigma=1$ (log utility) used as the baseline specification.
+
+In dynamic form, students choose $H$ to maximize discounted lifetime
+utility:
+\[
+V(G;d)
+=
+\max_{H \in [0,12]}
+\left\{
+u(G') - \chi_d H
+\;+\;
+\beta V(G';d)
+\right\},
+\qquad 0<\beta<1.
+\]
+
+The code implements this dynamic problem by discretizing the GPA state
+space and solving for the optimal policy $H^*(G;d)$ using value
+iteration. Because the empirical production function admits several
+parametric forms, we evaluate optimal study policies under multiple
+transition specifications $f(H;d)$.
+
+
+\section{Dynamic Programming Model}
+\label{sec:dp}
+
+We embed the empirical productivity differences into a simple dynamic
+programming (DP) setting. The state variable is GPA $G$ and the control
+is study time $h$. The code computes four alternative versions of the
+transition function, reflecting different assumptions about how GPA
+responds to hours.
+
+\subsection{Empirical Transition Structures}
+
+Let $G_t$ denote GPA at time $t$. The model computes optimal study hours
+under three specifications for the GPA increment $f(H;d)$:
+
+\begin{enumerate}
+    \item \textbf{Linearized productivity (LIN)}:
+    \[
+    f_{\mathrm{lin}}(H;d) = MP_d(\bar{H}) \cdot H,
+    \]
+    where $MP_d(\bar{H})$ is the empirical marginal product for type $d$
+    evaluated at mean study hours.
+
+    \item \textbf{Quadratic full (QF)}:
+    \[
+    f_{\mathrm{qf}}(H;d)
+    =
+    (b_1 + g_{2} d) H
+    +
+    (b_2 + g_{3} d) H^2,
+    \]
+    where $(b_1,b_2,g_2,g_3)$ are estimated from the empirical regression.
+
+
+    \item \textbf{Centered regression (CC)}:
+    \[
+    f_{\mathrm{cc}}(H;d)
+    =
+    (b_1^c + g_2^c d) H_c
+    +
+    (b_2^c + g_3^c d) H_c^2,
+    \qquad
+    H_c = H - \bar{H},
+    \]
+    where coefficients $(b_1^c,b_2^c,g_2^c,g_3^c)$ come from the centered
+    polynomial regression estimated in the code. This variant typically
+    produces the most stable marginal product measures.
+\end{enumerate}
+
+Each specification yields a different state transition
+\[
+G_{t+1} = G_t + f_{\ell}(H_t;d),
+\]
+with $\ell \in \{\mathrm{lin},\mathrm{qf},\mathrm{cc}\}$.
+
+\subsection{Instantaneous Utility}
+
+In all specifications we treat effort cost additively but allow the
+student's payoff from GPA to be \emph{concave}. Denote by $u(\cdot)$ the
+per-period utility derived from next-period GPA $G_{t+1}$. The instantaneous
+payoff is therefore
+\[
+u(G_{t+1}) - \chi_d h_t.
+\]
+
+In the code we implement the standard CRRA family for $u(\cdot)$, with
+parameter $\sigma$:
+\[
+u(G) =
+\begin{cases}
+\log(G) & \text{if }\sigma = 1,\\[4pt]
+\dfrac{G^{1-\sigma}-1}{1-\sigma} & \text{if }\sigma \neq 1,
+\end{cases}
+\]
+and we impose a small numerical floor to ensure $G>0$ inside the utility
+function. The linear disutility of effort remains $\chi_d h_t$, where
+$\chi_d$ is calibrated from the empirical marginal product at mean
+hours as in the code:
+\[
+\chi_0 = MP_{\mathrm{non}}(\bar{H}),\qquad
+\chi_1 = MP_{\mathrm{dep}}(\bar{H}).
+\]
+
+In all numerical results presented below, we set $\sigma = 1$ so that
+$u(G)=\log(G)$, following the instructor’s recommendation for a smooth
+and concave specification.
+
+
+\section{Policy Functions Across Specifications}
+\label{sec:dp_results}
+
+The DP solver produces 3 pairs of policy functions:
+\[
+\{h^*_{\mathrm{lin},d}(G), \;
+  h^*_{\mathrm{qf},d}(G), \;
+  h^*_{\mathrm{cc},d}(G)\}, \qquad d \in \{0,1\}.
+\]
+
+A key result from the code is that \emph{the relationship between
+depression and optimal hours is specification-dependent}. In some cases,
+such as the full quadratic model, depressed students choose lower hours
+at certain GPA levels due to the curvature of the estimated production
+function. In others---most notably the centered polynomial and linear
+variants---the depressed policy lies above the non-depressed policy at
+many GPA values.
+Because the GPA payoff is concave in the implemented model (log/CRRA
+utility), the resulting policy functions are smoother than under a
+linear-utility formulation. Concavity reduces the prevalence of corner
+solutions—situations in which students study either the maximum or
+minimum feasible hours—and instead yields gradually declining optimal
+hours as GPA rises. This aligns with economic intuition: when the
+marginal utility of GPA diminishes at higher levels, additional study
+effort becomes less valuable, leading to interior optima.
+
+
+Evaluating the policies at the sample mean GPA 
+($\overline{G}\approx 7.656$) yields, for example:
+
+\[
+h^*_{\mathrm{lin},0}(\overline{G}) \approx 8.75, \qquad
+h^*_{\mathrm{lin},1}(\overline{G}) \approx 12.0,
+\]
+
+but the quadratic specifications may produce smaller or even reversed
+differences. With concave utility, these reversals are less extreme than
+under linear utility, but the qualitative ranking can still vary across
+specifications because the productivity functions imply different
+returns to effort across the GPA range. This reflects the fact that each
+empirical specification implies a different marginal productivity
+schedule.
+
+
+Across all specifications, however, two qualitative observations hold:
+
+\begin{itemize}
+    \item Policies tend to be weakly decreasing in GPA: students with
+          higher GPA need fewer additional study hours to sustain
+          performance.
+    \item Depression affects optimal hours through two competing
+          channels: reduced productivity ($f_{\ell}$ smaller for $d=1$)
+          and reduced effort cost ($\chi_1 < \chi_0$). The balance of
+          these forces determines the ranking of $h^*(G;0)$ and
+          $h^*(G;1)$, yielding specification-dependent results.
+\end{itemize}
+
+Figure 5 and 6 plots one representative set of the computed
+policies.
+
+% ---- main DP comparison (replace old dp_opt_policy)
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{./analysis_outputs/dp_policy_comparison_logutil.png}
+\caption{Comparison of optimal study-hour policies under three empirical transition specifications (linearized, quadratic full, centered). Lines compare non-depressed and depressed students; the ranking of effort is specification-dependent.}
+\label{fig:dp_policy_comparison}
+\end{figure}
+
+% ---- value functions (centered spec)
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{./analysis_outputs/dp_value_centered_logutil.png}
+\caption{Value functions under the centered transition specification with log utility. The concave utility causes smooth value curves and reduces corner solutions.}
+\label{fig:dp_value_centered}
+\end{figure}
+
+
+
+\section{Conclusion}
+
+The dynamic programming analysis demonstrates how different empirical 
+assumptions about academic productivity translate into different optimal
+study behaviors. Because depression reduces estimated marginal
+productivity, optimal study hours may increase or decrease depending on
+how strongly the cost parameter $\chi_d$ adjusts in the calibration and
+how the production function is modeled.
+
+The code's multiple specifications show that predictions are 
+\emph{sensitive to the chosen functional form}. In particular, while some
+specifications predict higher optimal hours for depressed students, 
+others predict smaller or reversed gaps. This highlights the importance 
+of carefully modeling the productivity–effort relationship when using 
+dynamic models to interpret behavioral responses to mental health 
+conditions.
+
+
+
+
+
+\end{document}
